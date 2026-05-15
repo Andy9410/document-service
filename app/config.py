@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     chunk_overlap: int = 64
     min_chunk_length: int = 80
 
-    search_top_k: int = 5
+    search_top_k: int = 3
     similarity_threshold: float = 0.72
 
     @property
