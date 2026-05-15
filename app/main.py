@@ -30,6 +30,7 @@ def create_app() -> FastAPI:
             "http://localhost:5174",
             "http://localhost:8080",
             "http://localhost:8082",
+            "https://learnsoft.uy",
         ],
         allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],

@@ -1,3 +1,5 @@
+app = "document-service-academy"
+
 [build]
 
 [env]
