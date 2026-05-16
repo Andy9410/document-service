@@ -53,6 +53,19 @@ async def search_documents(
             )
             log.info("[RAG] exact match '%s': %d chunks", exercise_num, len(exact_rows))
 
+            if exact_rows and not request.preferred_document_id:
+                doc_names = list(dict.fromkeys(r["filename"] for r in exact_rows))
+                if len(doc_names) > 1:
+                    log.info("[RAG] ambiguous: '%s' found in %d docs", exercise_num, len(doc_names))
+                    return SearchResponse(
+                        query=request.query,
+                        results=[],
+                        found=0,
+                        ambiguous=True,
+                        ambiguous_documents=doc_names,
+                        exercise_ref=exercise_match.group(0),
+                    )
+
         query_vec = await embed_single(request.query)
         vec_rows = await store.search_chunks(
             query_vector=query_vec,
