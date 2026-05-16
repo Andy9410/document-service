@@ -17,6 +17,17 @@ _EXERCISE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_WORD_TO_NUM: dict[str, str] = {
+    "uno": "1", "dos": "2", "tres": "3", "cuatro": "4", "cinco": "5",
+    "seis": "6", "siete": "7", "ocho": "8", "nueve": "9", "diez": "10",
+    "once": "11", "doce": "12", "trece": "13", "catorce": "14", "quince": "15",
+}
+_WORD_NUM_RE = re.compile(r"\b(" + "|".join(_WORD_TO_NUM) + r")\b", re.IGNORECASE)
+
+
+def _normalize_query(text: str) -> str:
+    return _WORD_NUM_RE.sub(lambda m: _WORD_TO_NUM[m.group(1).lower()], text)
+
 
 @router.post("/search", response_model=SearchResponse)
 async def search_documents(
@@ -27,7 +38,8 @@ async def search_documents(
     top_k = request.top_k or settings.search_top_k
     threshold = request.similarity_threshold or settings.similarity_threshold
 
-    exercise_match = _EXERCISE_RE.search(request.query)
+    normalized_query = _normalize_query(request.query)
+    exercise_match = _EXERCISE_RE.search(normalized_query)
 
     async with get_conn() as conn:
         exact_rows: list[dict] = []
@@ -37,6 +49,7 @@ async def search_documents(
                 exercise_num=exercise_num,
                 user_email=request.user_email,
                 conn=conn,
+                preferred_document_id=request.preferred_document_id,
             )
             log.info("[RAG] exact match '%s': %d chunks", exercise_num, len(exact_rows))
 
@@ -47,6 +60,7 @@ async def search_documents(
             top_k=top_k,
             threshold=threshold,
             conn=conn,
+            preferred_document_id=request.preferred_document_id,
         )
 
         log.info("[RAG] vector search: %d chunks (threshold=%.2f)", len(vec_rows), threshold)

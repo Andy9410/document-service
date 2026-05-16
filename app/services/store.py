@@ -70,6 +70,7 @@ async def search_chunks(
     top_k: int,
     threshold: float,
     conn: asyncpg.Connection,
+    preferred_document_id: int | None = None,
 ) -> list[dict]:
     vec = "[" + ",".join(str(v) for v in query_vector) + "]"
     rows = await conn.fetch(
@@ -87,10 +88,12 @@ async def search_chunks(
         WHERE d.user_email = $2
           AND d.status = 'ready'
           AND 1 - (de.embedding <=> CAST($1 AS vector)) >= $3
-        ORDER BY de.embedding <=> CAST($1 AS vector)
+        ORDER BY
+            CASE WHEN ($5::int IS NOT NULL AND d.id = $5) THEN 0 ELSE 1 END,
+            de.embedding <=> CAST($1 AS vector)
         LIMIT $4
         """,
-        vec, user_email, threshold, top_k,
+        vec, user_email, threshold, top_k, preferred_document_id,
     )
     return [dict(r) for r in rows]
 
@@ -99,9 +102,9 @@ async def search_chunks_by_exercise(
     exercise_num: str,
     user_email: str,
     conn: asyncpg.Connection,
+    preferred_document_id: int | None = None,
 ) -> list[dict]:
-    rows = await conn.fetch(
-        """
+    base = """
         SELECT
             de.chunk_text,
             de.chunk_index,
@@ -115,10 +118,15 @@ async def search_chunks_by_exercise(
         WHERE d.user_email = $1
           AND d.status = 'ready'
           AND de.metadata->>'exercise_ref' ILIKE $2
-        ORDER BY d.id, de.chunk_index
-        """,
-        user_email, f"%{exercise_num}%",
-    )
+    """
+    if preferred_document_id is not None:
+        rows = await conn.fetch(
+            base + " AND d.id = $3 ORDER BY de.chunk_index",
+            user_email, f"%{exercise_num}%", preferred_document_id,
+        )
+        if rows:
+            return [dict(r) for r in rows]
+    rows = await conn.fetch(base + " ORDER BY d.id, de.chunk_index", user_email, f"%{exercise_num}%")
     return [dict(r) for r in rows]
 
 
