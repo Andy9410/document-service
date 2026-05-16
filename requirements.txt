@@ -12,3 +12,4 @@ pytesseract==0.3.13
 Pillow==11.0.0
 aiofiles==24.1.0
 python-magic==0.4.27
+tiktoken==0.9.0
