@@ -25,8 +25,9 @@ class UploadResult(BaseModel):
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=2, max_length=1000)
     user_email: str
-    top_k: int = Field(default=3, ge=1, le=20)
+    top_k: int = Field(default=8, ge=1, le=20)
     similarity_threshold: float = Field(default=0.72, ge=0.0, le=1.0)
+    preferred_document_id: int | None = None
 
 
 class ChunkResult(BaseModel):
