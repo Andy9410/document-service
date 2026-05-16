@@ -95,6 +95,33 @@ async def search_chunks(
     return [dict(r) for r in rows]
 
 
+async def search_chunks_by_exercise(
+    exercise_num: str,
+    user_email: str,
+    conn: asyncpg.Connection,
+) -> list[dict]:
+    rows = await conn.fetch(
+        """
+        SELECT
+            de.chunk_text,
+            de.chunk_index,
+            de.page_number,
+            de.metadata,
+            d.filename,
+            d.id AS document_id,
+            1.0 AS similarity
+        FROM document_embeddings de
+        JOIN documents d ON d.id = de.document_id
+        WHERE d.user_email = $1
+          AND d.status = 'ready'
+          AND de.metadata->>'exercise_ref' ILIKE $2
+        ORDER BY d.id, de.chunk_index
+        """,
+        user_email, f"%{exercise_num}%",
+    )
+    return [dict(r) for r in rows]
+
+
 async def get_user_documents(user_email: str, conn: asyncpg.Connection) -> list[dict]:
     rows = await conn.fetch(
         """
