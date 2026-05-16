@@ -4,7 +4,7 @@ app = "document-service-academy"
 
 [env]
   PORT = "8083"
-  SEARCH_TOP_K = "3"
+  SEARCH_TOP_K = "8"
 
 [[services]]
   internal_port = 8083
