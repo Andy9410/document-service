@@ -43,3 +43,6 @@ class SearchResponse(BaseModel):
     query: str
     results: list[ChunkResult]
     found: int
+    ambiguous: bool = False
+    ambiguous_documents: list[str] = []
+    exercise_ref: str | None = None
