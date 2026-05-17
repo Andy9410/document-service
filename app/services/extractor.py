@@ -10,7 +10,7 @@ from app.services.detector import FileKind
 _HEADING_RE = re.compile(
     r"^(\d+[\.\d]*\s+[A-ZÁÉÍÓÚÑ].{3,80}$"
     r"|[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s]{5,60}$"
-    r"|(?:Ejercicio|Exercise|Problema|Problem|Práctica|Práctico)\s+\d+)",
+    r"|(?:Ejercicio|Exercise|Problema|Problem|Práctica|Práctico|Pregunta|Punto|Item|Inciso)\s+\d+[\.\d]*[a-z]?)",
     re.MULTILINE,
 )
 
