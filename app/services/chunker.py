@@ -1,18 +1,32 @@
 import re
+import logging
 import tiktoken
 from dataclasses import dataclass
 from app.services.extractor import PageBlock
 from app.config import get_settings
 
+log = logging.getLogger(__name__)
+
 _EXERCISE_RE = re.compile(
     r"(?:ejercicio|exercise|problema|problem|pregunta|práctica|práctico|punto|item|inciso|ej\.?)\s*(\d+[\.\d]*[a-z]?)",
     re.IGNORECASE,
 )
-# Double newline = real paragraph break; single newline = PDF soft wrap
 _PARA_BREAK_RE = re.compile(r"\n{2,}")
 _SOFT_WRAP_RE = re.compile(r"(?<!\n)\n(?!\n)")
-_SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
 _enc = tiktoken.get_encoding("cl100k_base")
+
+try:
+    import spacy
+    _nlp = spacy.load("es_core_news_sm", disable=["ner", "tagger", "parser", "lemmatizer", "attribute_ruler"])
+    _nlp.add_pipe("sentencizer")
+    log.info("[chunker] spaCy es_core_news_sm loaded")
+    def _split_sentences(text: str) -> list[str]:
+        return [s.text.strip() for s in _nlp(text).sents if s.text.strip()]
+except Exception:
+    log.warning("[chunker] spaCy not available, falling back to regex sentence splitter")
+    _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+    def _split_sentences(text: str) -> list[str]:  # type: ignore[misc]
+        return [s for s in _SENTENCE_RE.split(text) if s.strip()]
 
 
 @dataclass
