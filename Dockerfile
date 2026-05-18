@@ -1,21 +1,18 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y \
+    libmagic1  \
+    file \
     tesseract-ocr \
     tesseract-ocr-spa \
-    tesseract-ocr-eng \
-    poppler-utils \
-    libmagic1 \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    libgl1
 
 WORKDIR /app
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN python -c "import tiktoken; tiktoken.get_encoding('cl100k_base')"
-RUN python -m spacy download es_core_news_sm
 
-COPY app/ ./app/
+RUN pip install -r requirements.txt
 
-EXPOSE 8083
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8083", "--workers", "2"]
+COPY . .
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
