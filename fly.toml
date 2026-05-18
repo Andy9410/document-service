@@ -3,43 +3,45 @@ app = "document-service-academy"
 [build]
 
 [env]
-  PORT = "8083"
-  SEARCH_TOP_K = "8"
+  PORT = "8080"
+  SEARCH_TOP_K = "3"
 
 [[services]]
-  internal_port = 8083
+  internal_port = 8080
   protocol = "tcp"
 
-  [[services.ports]]
-    handlers = ["http"]
-    port = 80
-    force_https = true
+[[services.ports]]
+  handlers = ["http"]
+  port = 80
+  force_https = true
 
-  [[services.ports]]
-    handlers = ["tls", "http"]
-    port = 443
+[[services.ports]]
+  handlers = ["tls", "http"]
+  port = 443
 
-  [services.concurrency]
-    type = "requests"
-    hard_limit = 25
-    soft_limit = 20
+[services.concurrency]
+  type = "requests"
+  hard_limit = 50
+  soft_limit = 30
 
-  [[services.tcp_checks]]
-    grace_period = "10s"
-    interval = "15s"
-    restart_limit = 0
-    timeout = "5s"
+# 🔵 TCP check más tolerante
+[[services.tcp_checks]]
+  grace_period = "30s"
+  interval = "20s"
+  timeout = "10s"
+  restart_limit = 0
 
-  [[services.http_checks]]
-    interval = "15s"
-    grace_period = "10s"
-    method = "GET"
-    path = "/health"
-    protocol = "http"
-    timeout = "5s"
+# 🔵 HTTP health check más relajado
+[[services.http_checks]]
+  interval = "30s"
+  grace_period = "30s"
+  method = "GET"
+  path = "/health"
+  protocol = "http"
+  timeout = "10s"
 
 [http_service]
-  internal_port = 8083
+  internal_port = 8080
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true
