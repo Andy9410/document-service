@@ -297,10 +297,7 @@ async def upload_documents(
             result = await ingest_document(
                 user_email=user_email,
                 filename=filename,
-                data=data,
-                extracted_text=extracted_text,
-                normalized_text=normalized_text,
-                content_type=f.content_type,
+                data=data
             )
 
             print("INGEST OK")
