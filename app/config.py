@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     cloudflare_account_id: str = ""
     cloudflare_api_token: str = ""
     cloudflare_base_url: str = "https://api.cloudflare.com/client/v4"
-    cloudflare_embedding_model: str = "@cf/baai/bge-base-en-v1.5"
+    cloudflare_embedding_model: str = "@cf/baai/bge-m3"
 
     jwt_secret: str = ""
 

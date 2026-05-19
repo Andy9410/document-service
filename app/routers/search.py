@@ -66,7 +66,7 @@ async def search_documents(
                         exercise_ref=exercise_match.group(0),
                     )
 
-        query_vec = await embed_single(request.query)
+        query_vec = await embed_single(f"query: {request.query}")
         vec_rows = await store.search_chunks(
             query_vector=query_vec,
             user_email=request.user_email,
