@@ -63,8 +63,8 @@ def _split_sentences(text: str) -> list[str]:
 
 def chunk_blocks(blocks: list[PageBlock]) -> list[Chunk]:
     s = get_settings()
-    max_tokens = s.chunk_size        # 512
-    overlap_tokens = s.chunk_overlap  # 64
+    max_tokens = s.chunk_size        # 384
+    overlap_tokens = s.chunk_overlap  # 38
     min_len = s.min_chunk_length     # 80
 
     chunks: list[Chunk] = []
