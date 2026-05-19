@@ -39,7 +39,7 @@ async def ingest_document(user_email: str, filename: str, data: bytes) -> dict:
         if not chunks:
             return {"status": "error", "message": "El documento no produjo chunks después de la extracción."}
 
-        embeddings = await embed_texts([c.text for c in chunks])
+        embeddings = await embed_texts([f"passage: {c.text}" for c in chunks])
 
         async with conn.transaction():
             doc_id = await store.insert_document(
