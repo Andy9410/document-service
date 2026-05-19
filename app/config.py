@@ -22,12 +22,12 @@ class Settings(BaseSettings):
     max_file_size_mb: int = 20
     max_files_per_upload: int = 5
 
-    chunk_size: int = 512
-    chunk_overlap: int = 64
+    chunk_size: int = 384
+    chunk_overlap: int = 48
     min_chunk_length: int = 80
 
     search_top_k: int = 8
-    similarity_threshold: float = 0.72
+    similarity_threshold: float = 0.64
 
     @property
     def db_dsn(self) -> str:
