@@ -88,8 +88,8 @@ async def search_chunks(
         WHERE d.user_email = $2
           AND d.status = 'ready'
           AND 1 - (de.embedding <=> CAST($1 AS vector)) >= $3
-          AND ($5::int IS NULL OR d.id = $5)
         ORDER BY
+            CASE WHEN ($5::int IS NOT NULL AND d.id = $5) THEN 0 ELSE 1 END,
             de.embedding <=> CAST($1 AS vector)
         LIMIT $4
         """,
