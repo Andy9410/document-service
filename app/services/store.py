@@ -104,7 +104,16 @@ async def search_chunks_by_exercise(
     conn: asyncpg.Connection,
     preferred_document_id: int | None = None,
 ) -> list[dict]:
-    base = """
+    """Busca chunks por exercise_ref. Cuando preferred_document_id está seteado
+    el filtro es OBLIGATORIO — nunca se hace fallback a otros documentos."""
+    params: list = [user_email, f"%{exercise_num}%"]
+    doc_filter = ""
+    if preferred_document_id is not None:
+        params.append(preferred_document_id)
+        doc_filter = f"AND d.id = ${len(params)}"
+
+    rows = await conn.fetch(
+        f"""
         SELECT
             de.chunk_text,
             de.chunk_index,
@@ -118,15 +127,11 @@ async def search_chunks_by_exercise(
         WHERE d.user_email = $1
           AND d.status = 'ready'
           AND de.metadata->>'exercise_ref' ILIKE $2
-    """
-    if preferred_document_id is not None:
-        rows = await conn.fetch(
-            base + " AND d.id = $3 ORDER BY de.chunk_index",
-            user_email, f"%{exercise_num}%", preferred_document_id,
-        )
-        if rows:
-            return [dict(r) for r in rows]
-    rows = await conn.fetch(base + " ORDER BY d.id, de.chunk_index", user_email, f"%{exercise_num}%")
+          {doc_filter}
+        ORDER BY de.chunk_index
+        """,
+        *params,
+    )
     return [dict(r) for r in rows]
 
 
