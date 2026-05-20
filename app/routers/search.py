@@ -38,6 +38,11 @@ async def search_documents(
     top_k = request.top_k or settings.search_top_k
     threshold = request.similarity_threshold or settings.similarity_threshold
 
+    log.info(
+        "[RAG DEBUG] user=%s preferred_doc_id=%s query=%r",
+        request.user_email, request.preferred_document_id, request.query[:120],
+    )
+
     normalized_query = _normalize_query(request.query)
     exercise_match = _EXERCISE_RE.search(normalized_query)
 
@@ -51,12 +56,15 @@ async def search_documents(
                 conn=conn,
                 preferred_document_id=request.preferred_document_id,
             )
-            log.info("[RAG] exact match '%s': %d chunks", exercise_num, len(exact_rows))
+            log.info(
+                "[RAG DEBUG] exact exercise='%s' preferred_doc=%s → %d chunks found",
+                exercise_num, request.preferred_document_id, len(exact_rows),
+            )
 
             if exact_rows and not request.preferred_document_id:
                 doc_names = list(dict.fromkeys(r["filename"] for r in exact_rows))
                 if len(doc_names) > 1:
-                    log.info("[RAG] ambiguous: '%s' found in %d docs", exercise_num, len(doc_names))
+                    log.info("[RAG DEBUG] ambiguous: '%s' in %d docs: %s", exercise_num, len(doc_names), doc_names)
                     return SearchResponse(
                         query=request.query,
                         results=[],
@@ -76,15 +84,16 @@ async def search_documents(
             preferred_document_id=request.preferred_document_id,
         )
 
-        log.info("[RAG] vector search: %d chunks (threshold=%.2f)", len(vec_rows), threshold)
+        log.info(
+            "[RAG DEBUG] vector search preferred_doc=%s threshold=%.2f → %d chunks",
+            request.preferred_document_id, threshold, len(vec_rows),
+        )
         for r in vec_rows:
             meta = json.loads(r["metadata"]) if r["metadata"] else {}
             log.info(
-                "[RAG] score=%.3f exercise_ref=%s file=%s text=%s",
-                float(r["similarity"]),
-                meta.get("exercise_ref"),
-                r["filename"],
-                r["chunk_text"][:120],
+                "[RAG DEBUG] score=%.3f doc_id=%s file=%s exercise_ref=%s text=%.80r",
+                float(r["similarity"]), r["document_id"], r["filename"],
+                meta.get("exercise_ref"), r["chunk_text"],
             )
 
     # Exact matches first, then vector — deduplicate by (document_id, chunk_index)
@@ -98,6 +107,17 @@ async def search_documents(
 
     merged = merged[:top_k]
 
+    # Strict isolation guard: if a document was requested, all returned chunks MUST belong to it
+    if request.preferred_document_id is not None:
+        before = len(merged)
+        merged = [r for r in merged if r["document_id"] == request.preferred_document_id]
+        if len(merged) < before:
+            log.error(
+                "[RAG] ISOLATION VIOLATION: %d chunks from wrong documents were stripped "
+                "(preferred_doc=%s). Check store logic.",
+                before - len(merged), request.preferred_document_id,
+            )
+
     results = [
         ChunkResult(
             chunk_text=r["chunk_text"],
@@ -110,5 +130,10 @@ async def search_documents(
         for r in merged
     ]
 
-    log.info("[RAG] returning %d chunks (exact=%d vec=%d)", len(results), len(exact_rows), len(vec_rows))
+    doc_names = list(dict.fromkeys(r.filename for r in results))
+    scores = [f"{r.similarity:.3f}" for r in results]
+    log.info(
+        "[RAG DEBUG] returning chunks=%d documents_used=%s scores=%s",
+        len(results), doc_names, scores,
+    )
     return SearchResponse(query=request.query, results=results, found=len(results))
