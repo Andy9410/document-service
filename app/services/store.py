@@ -18,18 +18,19 @@ async def insert_document(
     content_hash: str,
     page_count: int,
     summary: str,
+    content_data: bytes | None,
     conn: asyncpg.Connection,
 ) -> int:
     row = await conn.fetchrow(
         """
         INSERT INTO documents
             (user_email, filename, file_type, upload_date, content_hash,
-             page_count, content, source, status)
-        VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, 'ready')
+             page_count, content, source, status, content_data)
+        VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, 'ready', $8)
         RETURNING id
         """,
         user_email, filename, file_type, content_hash,
-        page_count, summary, filename,
+        page_count, summary, filename, content_data,
     )
     return row["id"]
 
@@ -150,6 +151,14 @@ async def get_user_documents(user_email: str, conn: asyncpg.Connection) -> list[
         user_email,
     )
     return [dict(r) for r in rows]
+
+
+async def get_content_data(doc_id: int, user_email: str, conn: asyncpg.Connection) -> bytes | None:
+    row = await conn.fetchrow(
+        "SELECT content_data FROM documents WHERE id = $1 AND user_email = $2 AND status != 'deleted'",
+        doc_id, user_email,
+    )
+    return row["content_data"] if row else None
 
 
 async def delete_document(doc_id: int, user_email: str, conn: asyncpg.Connection) -> bool:

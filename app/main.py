@@ -47,6 +47,8 @@ def create_app() -> FastAPI:
             "http://localhost:8080",
             "http://localhost:8082",
             "https://learnsoft.uy",
+            "https://learnsoft-academy.fly.dev",
+            "https://codebuff-academy.github.io",
         ],
         allow_methods=["*"],
         allow_headers=["*"],

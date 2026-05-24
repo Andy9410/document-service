@@ -49,6 +49,7 @@ async def ingest_document(user_email: str, filename: str, data: bytes) -> dict:
                 content_hash=content_hash,
                 page_count=page_count,
                 summary=summary,
+                content_data=data,
                 conn=conn,
             )
             await store.insert_chunks(doc_id, chunks, embeddings, conn)
