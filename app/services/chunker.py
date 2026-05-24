@@ -36,6 +36,7 @@ class Chunk:
     page_number: int
     section_title: str | None
     exercise_ref: str | None
+    bbox: dict | None = None
 
 
 def _tokens(text: str) -> int:

@@ -10,7 +10,7 @@ import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.database import init_pool, close_pool
+from app.database import init_pool, close_pool, get_pool
 from app.routers import documents, search
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +27,13 @@ sentry_sdk.init(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_pool()
+
+    # Asegurar columnas necesarias para el visor PDF
+    async with get_pool().acquire() as conn:
+        await conn.execute(
+            "ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_data BYTEA"
+        )
+
     yield
     await close_pool()
 
