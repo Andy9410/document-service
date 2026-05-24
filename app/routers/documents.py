@@ -17,6 +17,7 @@ from fastapi import (
     File,
     Depends,
     HTTPException,
+    Response,
     status,
 )
 
@@ -609,3 +610,35 @@ async def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Documento no encontrado.",
         )
+
+
+@router.get(
+    "/{doc_id}/download",
+)
+async def download_document(
+        doc_id: int,
+        user_email: str = Depends(require_user),
+):
+    async with get_conn() as conn:
+
+        data = await store.get_content_data(
+            doc_id,
+            user_email,
+            conn,
+        )
+
+    if data is None:
+
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Documento no encontrado o sin contenido binario.",
+        )
+
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": "inline",
+            "Content-Length": str(len(data)),
+        },
+    )
