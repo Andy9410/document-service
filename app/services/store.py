@@ -18,18 +18,19 @@ async def insert_document(
     content_hash: str,
     page_count: int,
     summary: str,
+    content_data: bytes | None,
     conn: asyncpg.Connection,
 ) -> int:
     row = await conn.fetchrow(
         """
         INSERT INTO documents
             (user_email, filename, file_type, upload_date, content_hash,
-             page_count, content, source, status)
-        VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, 'ready')
+             page_count, content, source, status, content_data)
+        VALUES ($1, $2, $3, NOW(), $4, $5, $6, $7, 'ready', $8)
         RETURNING id
         """,
         user_email, filename, file_type, content_hash,
-        page_count, summary, filename,
+        page_count, summary, filename, content_data,
     )
     return row["id"]
 
@@ -49,6 +50,7 @@ async def insert_chunks(
             json.dumps({
                 "section_title": chunk.section_title,
                 "exercise_ref": chunk.exercise_ref,
+                "bbox": chunk.bbox,
             }),
             chunk.page_number,
         )
@@ -150,6 +152,81 @@ async def get_user_documents(user_email: str, conn: asyncpg.Connection) -> list[
         user_email,
     )
     return [dict(r) for r in rows]
+
+
+async def get_document_data(doc_id: int, user_email: str, conn: asyncpg.Connection) -> bytes | None:
+    row = await conn.fetchrow(
+        "SELECT content_data FROM documents WHERE id = $1 AND user_email = $2 AND status != 'deleted'",
+        doc_id, user_email,
+    )
+    return row["content_data"] if row else None
+
+
+async def get_document_exercises(doc_id: int, user_email: str, conn: asyncpg.Connection) -> list[dict]:
+    """Retorna ejercicios únicos detectados en los chunks del documento,
+    incluyendo bbox si está disponible."""
+    rows = await conn.fetch(
+        """
+        SELECT DISTINCT
+            de.metadata->>'exercise_ref' AS exercise_ref,
+            de.page_number,
+            de.metadata->>'section_title' AS section_title,
+            de.metadata->'bbox' AS bbox
+        FROM document_embeddings de
+        JOIN documents d ON d.id = de.document_id
+        WHERE d.id = $1 AND d.user_email = $2 AND d.status != 'deleted'
+          AND de.metadata->>'exercise_ref' IS NOT NULL
+          AND de.metadata->>'exercise_ref' != ''
+        ORDER BY de.page_number
+        """,
+        doc_id, user_email,
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_documents_needing_bbox(user_email: str, conn: asyncpg.Connection) -> list[dict]:
+    """Docs that have content_data + exercise_ref in chunks, but missing bbox."""
+    rows = await conn.fetch(
+        """
+        SELECT DISTINCT d.id, d.filename, d.file_type
+        FROM documents d
+        JOIN document_embeddings de ON de.document_id = d.id
+        WHERE d.user_email = $1
+          AND d.status != 'deleted'
+          AND d.content_data IS NOT NULL
+          AND d.file_type IN ('pdf_text', 'pdf_scanned')
+          AND de.metadata->>'exercise_ref' IS NOT NULL
+          AND (de.metadata->'bbox' IS NULL OR de.metadata->'bbox' = 'null'::jsonb)
+        ORDER BY d.id
+        """,
+        user_email,
+    )
+    return [dict(r) for r in rows]
+
+
+async def get_chunks_needing_bbox(doc_id: int, conn: asyncpg.Connection) -> list[dict]:
+    """Chunks with exercise_ref but no bbox for a given document."""
+    rows = await conn.fetch(
+        """
+        SELECT de.id, de.metadata, de.page_number
+        FROM document_embeddings de
+        WHERE de.document_id = $1
+          AND de.metadata->>'exercise_ref' IS NOT NULL
+          AND (de.metadata->'bbox' IS NULL OR de.metadata->'bbox' = 'null'::jsonb)
+        ORDER BY de.page_number, de.chunk_index
+        """,
+        doc_id,
+    )
+    return [dict(r) for r in rows]
+
+
+async def update_chunk_metadata(chunk_id: int, metadata_update: dict, conn: asyncpg.Connection) -> None:
+    """Mergea un dict en el metadata JSONB del chunk."""
+    await conn.execute(
+        "UPDATE document_embeddings SET metadata = metadata || $1::jsonb WHERE id = $2",
+        json.dumps(metadata_update),
+        chunk_id,
+    )
 
 
 async def delete_document(doc_id: int, user_email: str, conn: asyncpg.Connection) -> bool:
