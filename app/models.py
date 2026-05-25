@@ -10,6 +10,7 @@ class DocumentOut(BaseModel):
     upload_date: datetime
     page_count: int | None
     chunk_count: int
+    download_available: bool = True
 
 
 class UploadResult(BaseModel):

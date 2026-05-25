@@ -142,7 +142,8 @@ async def get_user_documents(user_email: str, conn: asyncpg.Connection) -> list[
         """
         SELECT
             d.id, d.filename, d.file_type, d.upload_date, d.page_count,
-            COUNT(de.id) AS chunk_count
+            COUNT(de.id) AS chunk_count,
+            d.content_data IS NOT NULL AS download_available
         FROM documents d
         LEFT JOIN document_embeddings de ON de.document_id = d.id
         WHERE d.user_email = $1 AND d.status != 'deleted'
