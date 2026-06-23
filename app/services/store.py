@@ -236,3 +236,159 @@ async def delete_document(doc_id: int, user_email: str, conn: asyncpg.Connection
         doc_id, user_email,
     )
     return result == "UPDATE 1"
+
+
+async def record_document_usage(
+    document_id: int,
+    user_email: str,
+    action: str,
+    conn: asyncpg.Connection,
+) -> None:
+    await conn.execute(
+        """
+        INSERT INTO document_usage_events (document_id, user_email, action)
+        VALUES ($1, $2, $3)
+        """,
+        document_id,
+        user_email,
+        action,
+    )
+
+
+async def get_admin_documents(
+    conn: asyncpg.Connection,
+    page: int,
+    size: int,
+    owner_email: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    offset = max(page, 0) * size
+    email_param = f"%{owner_email.strip().lower()}%" if owner_email and owner_email.strip() else None
+    filename_param = f"%{filename.strip().lower()}%" if filename and filename.strip() else None
+
+    base_where = """
+        WHERE d.status != 'deleted'
+          AND ($1::text IS NULL OR LOWER(d.user_email) LIKE $1)
+          AND ($2::text IS NULL OR LOWER(d.filename) LIKE $2)
+    """
+
+    rows = await conn.fetch(
+        f"""
+        SELECT
+            d.id,
+            d.filename,
+            d.file_type,
+            d.upload_date,
+            d.page_count,
+            d.user_email AS owner_email,
+            COUNT(DISTINCT de.id) AS chunk_count,
+            COUNT(ue.id) FILTER (WHERE ue.action IN ('SEARCH', 'VIEW')) AS query_count,
+            COUNT(DISTINCT ue.user_email) FILTER (WHERE ue.action IN ('SEARCH', 'VIEW')) AS unique_users,
+            MAX(ue.created_at) FILTER (WHERE ue.action IN ('SEARCH', 'VIEW')) AS last_used_at
+        FROM documents d
+        LEFT JOIN document_embeddings de ON de.document_id = d.id
+        LEFT JOIN document_usage_events ue ON ue.document_id = d.id
+        {base_where}
+        GROUP BY d.id
+        ORDER BY COALESCE(MAX(ue.created_at), d.upload_date) DESC, d.id DESC
+        LIMIT $3 OFFSET $4
+        """,
+        email_param,
+        filename_param,
+        size,
+        offset,
+    )
+
+    total = await conn.fetchval(
+        f"""
+        SELECT COUNT(*)
+        FROM documents d
+        {base_where}
+        """,
+        email_param,
+        filename_param,
+    )
+    return {"content": [dict(r) for r in rows], "total": total or 0}
+
+
+async def get_admin_document_metrics(
+    conn: asyncpg.Connection,
+    owner_email: str | None = None,
+    filename: str | None = None,
+) -> dict:
+    email_param = f"%{owner_email.strip().lower()}%" if owner_email and owner_email.strip() else None
+    filename_param = f"%{filename.strip().lower()}%" if filename and filename.strip() else None
+
+    base_where = """
+        WHERE d.status != 'deleted'
+          AND ($1::text IS NULL OR LOWER(d.user_email) LIKE $1)
+          AND ($2::text IS NULL OR LOWER(d.filename) LIKE $2)
+    """
+
+    total_documents = await conn.fetchval(
+        f"SELECT COUNT(*) FROM documents d {base_where}",
+        email_param,
+        filename_param,
+    )
+    uploads_today = await conn.fetchval(
+        f"SELECT COUNT(*) FROM documents d {base_where} AND d.upload_date >= CURRENT_DATE",
+        email_param,
+        filename_param,
+    )
+    documents_used_today = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT d.id)
+        FROM documents d
+        JOIN document_usage_events ue ON ue.document_id = d.id
+        {base_where}
+          AND ue.created_at >= CURRENT_DATE
+          AND ue.action IN ('SEARCH', 'VIEW')
+        """,
+        email_param,
+        filename_param,
+    )
+    unique_users_today = await conn.fetchval(
+        f"""
+        SELECT COUNT(DISTINCT ue.user_email)
+        FROM documents d
+        JOIN document_usage_events ue ON ue.document_id = d.id
+        {base_where}
+          AND ue.created_at >= CURRENT_DATE
+          AND ue.action IN ('SEARCH', 'VIEW')
+        """,
+        email_param,
+        filename_param,
+    )
+    return {
+        "total_documents": total_documents or 0,
+        "documents_used_today": documents_used_today or 0,
+        "unique_users_today": unique_users_today or 0,
+        "uploads_today": uploads_today or 0,
+    }
+
+
+async def get_admin_document_detail(conn: asyncpg.Connection, doc_id: int) -> dict | None:
+    row = await conn.fetchrow(
+        """
+        SELECT
+            d.id,
+            d.filename,
+            d.file_type,
+            d.upload_date,
+            d.page_count,
+            d.user_email AS owner_email,
+            COUNT(DISTINCT de.id) AS chunk_count,
+            COUNT(ue.id) FILTER (WHERE ue.action IN ('SEARCH', 'VIEW')) AS query_count,
+            COUNT(DISTINCT ue.user_email) FILTER (WHERE ue.action IN ('SEARCH', 'VIEW')) AS unique_users,
+            MAX(ue.created_at) FILTER (WHERE ue.action IN ('SEARCH', 'VIEW')) AS last_used_at,
+            d.content_data IS NOT NULL AS download_available
+        FROM documents d
+        LEFT JOIN document_embeddings de ON de.document_id = d.id
+        LEFT JOIN document_usage_events ue ON ue.document_id = d.id
+        WHERE d.id = $1
+          AND d.status != 'deleted'
+        GROUP BY d.id
+        """,
+        doc_id,
+    )
+    return dict(row) if row else None

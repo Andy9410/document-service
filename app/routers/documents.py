@@ -23,8 +23,8 @@ from fastapi import (
 
 from fastapi.responses import Response
 
-from app.auth import require_user
-from app.models import UploadResult, DocumentOut
+from app.auth import require_admin, require_user
+from app.models import UploadResult, DocumentOut, AdminDocumentDetail, AdminDocumentMetrics, AdminDocumentPage, AdminDocumentSummary
 from app.services.pipeline import ingest_document, _ocr_bboxes_for_page
 from app.services import store
 from app.database import get_conn
@@ -342,6 +342,10 @@ async def upload_documents(
                 )
             )
 
+            if result.get("document_id") and result.get("status") in {"ready", "duplicate"}:
+                async with get_conn() as conn:
+                    await store.record_document_usage(result["document_id"], user_email, "UPLOAD", conn)
+
         except Exception as e:
 
             print(f"GLOBAL ERROR: {e}")
@@ -417,6 +421,8 @@ async def download_document(
 ):
     async with get_conn() as conn:
         data = await store.get_document_data(doc_id, user_email, conn)
+        if data is not None:
+            await store.record_document_usage(doc_id, user_email, "VIEW", conn)
 
     if data is None:
         raise HTTPException(
@@ -444,6 +450,7 @@ async def list_exercises(
 ):
     async with get_conn() as conn:
         raw = await store.get_document_exercises(doc_id, user_email, conn)
+        await store.record_document_usage(doc_id, user_email, "VIEW", conn)
 
     results = []
     for ex in raw:
@@ -466,6 +473,54 @@ async def list_exercises(
         results.append(item)
 
     return results
+
+
+@router.get("/admin", response_model=AdminDocumentPage)
+async def admin_documents(
+        page: int = 0,
+        size: int = 20,
+        email: str | None = None,
+        filename: str | None = None,
+        _: str = Depends(require_admin),
+):
+    safe_size = max(1, min(size, 100))
+    async with get_conn() as conn:
+        payload = await store.get_admin_documents(conn, max(page, 0), safe_size, email, filename)
+    total_elements = payload["total"]
+    total_pages = max(1, (total_elements + safe_size - 1) // safe_size)
+    return AdminDocumentPage(
+        content=[AdminDocumentSummary(**item) for item in payload["content"]],
+        total_elements=total_elements,
+        total_pages=total_pages,
+        page=max(page, 0),
+        size=safe_size,
+    )
+
+
+@router.get("/admin/metrics", response_model=AdminDocumentMetrics)
+async def admin_document_metrics(
+        email: str | None = None,
+        filename: str | None = None,
+        _: str = Depends(require_admin),
+):
+    async with get_conn() as conn:
+        payload = await store.get_admin_document_metrics(conn, email, filename)
+    return AdminDocumentMetrics(**payload)
+
+
+@router.get("/admin/{doc_id}", response_model=AdminDocumentDetail)
+async def admin_document_detail(
+        doc_id: int,
+        _: str = Depends(require_admin),
+):
+    async with get_conn() as conn:
+        payload = await store.get_admin_document_detail(conn, doc_id)
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Documento no encontrado.",
+        )
+    return AdminDocumentDetail(**payload)
 
 
 def _extract_num(ref: str) -> str:
@@ -640,4 +695,3 @@ async def delete_document(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Documento no encontrado.",
         )
-

@@ -32,7 +32,7 @@ def _normalize_query(text: str) -> str:
 @router.post("/search", response_model=SearchResponse)
 async def search_documents(
     request: SearchRequest,
-    _: str = Depends(require_user),
+    current_user_email: str = Depends(require_user),
 ):
     settings = get_settings()
     top_k = request.top_k or settings.search_top_k
@@ -136,4 +136,8 @@ async def search_documents(
         "[RAG DEBUG] returning chunks=%d documents_used=%s scores=%s",
         len(results), doc_names, scores,
     )
+    async with get_conn() as conn:
+        for document_id in {r.document_id for r in results}:
+            await store.record_document_usage(document_id, current_user_email, "SEARCH", conn)
+
     return SearchResponse(query=request.query, results=results, found=len(results))

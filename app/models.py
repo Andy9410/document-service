@@ -13,6 +13,48 @@ class DocumentOut(BaseModel):
     download_available: bool = True
 
 
+class AdminDocumentSummary(BaseModel):
+    id: int
+    filename: str
+    file_type: str
+    upload_date: datetime
+    page_count: int | None
+    chunk_count: int
+    owner_email: str
+    query_count: int
+    unique_users: int
+    last_used_at: datetime | None = None
+
+
+class AdminDocumentPage(BaseModel):
+    content: list[AdminDocumentSummary]
+    total_elements: int
+    total_pages: int
+    page: int
+    size: int
+
+
+class AdminDocumentMetrics(BaseModel):
+    total_documents: int
+    documents_used_today: int
+    unique_users_today: int
+    uploads_today: int
+
+
+class AdminDocumentDetail(BaseModel):
+    id: int
+    filename: str
+    file_type: str
+    upload_date: datetime
+    page_count: int | None
+    chunk_count: int
+    owner_email: str
+    query_count: int
+    unique_users: int
+    last_used_at: datetime | None = None
+    download_available: bool = True
+
+
 class UploadResult(BaseModel):
     document_id: int | None = None
     filename: str
