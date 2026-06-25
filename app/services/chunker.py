@@ -78,12 +78,12 @@ def chunk_blocks(blocks: list[PageBlock]) -> list[Chunk]:
     cur_section: str | None = None
     cur_exercise: str | None = None
 
-    def flush() -> None:
+    def flush(force: bool = False) -> None:
         nonlocal index, parts, tok_count
         if not parts:
             return
         text = " ".join(parts).strip()
-        if len(text) >= min_len:
+        if len(text) >= min_len or force:
             chunks.append(Chunk(
                 text=text,
                 chunk_index=index,
@@ -134,5 +134,5 @@ def chunk_blocks(blocks: list[PageBlock]) -> list[Chunk]:
             else:
                 push(para)
 
-    flush()
+    flush(force=True)
     return chunks
